@@ -1,0 +1,48 @@
+
+name: Build MESSA APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "*.zip"
+      - ".github/workflows/build-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download project
+        uses: actions/checkout@v4
+
+      - name: Prepare Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Prepare Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract MESSA
+        run: |
+          mkdir source
+          ARCHIVE=$(find . -maxdepth 1 -name "*.zip" | head -1)
+          test -n "$ARCHIVE"
+          unzip -q "$ARCHIVE" -d source
+          WRAPPER=$(find source -name gradlew -type f | head -1)
+          test -n "$WRAPPER"
+          echo "PROJECT_DIR=$(dirname "$WRAPPER")" >> $GITHUB_ENV
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Save APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MESSA-APK
+          path: source/**/build/outputs/apk/debug/*.apk

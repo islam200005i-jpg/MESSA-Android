@@ -16,33 +16,47 @@ jobs:
       - name: Download project
         uses: actions/checkout@v4
 
-      - name: Prepare Java
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Prepare Android SDK
+      - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install Android packages
+        run: |
+          sdkmanager --install "platform-tools"
+          sdkmanager --install "platforms;android-35"
+          sdkmanager --install "build-tools;35.0.0"
+          yes | sdkmanager --licenses
 
       - name: Extract MESSA
         run: |
-          mkdir source
-          ARCHIVE=$(find . -maxdepth 1 -name "*.zip" | head -1)
-          test -n "$ARCHIVE"
-          unzip -q "$ARCHIVE" -d source
-          WRAPPER=$(find source -name gradlew -type f | head -1)
-          test -n "$WRAPPER"
-          echo "PROJECT_DIR=$(dirname "$WRAPPER")" >> $GITHUB_ENV
+          mkdir -p source
+          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -1)
+          test -n "$ZIP"
+          unzip -q "$ZIP" -d source
 
-      - name: Build APK
+      - name: Find Android project
         run: |
-          cd "$PROJECT_DIR"
+          FILE=$(find source -name gradlew -type f | head -1)
+          if [ -z "$FILE" ]; then
+            echo "Android Gradle project not found"
+            exit 1
+          fi
+          echo "GRADLE_FILE=$FILE" >> $GITHUB_ENV
+
+      - name: Build MESSA APK
+        run: |
+          cd "$(dirname "$GRADLE_FILE")"
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Save APK
+      - name: Upload MESSA APK
         uses: actions/upload-artifact@v4
         with:
           name: MESSA-APK
           path: source/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
